@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.28917.181
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dslink-dotnet-sensolus", "dslink-dotnet-sensolus\dslink-dotnet-sensolus.csproj", "{875BC092-C3A1-4EED-9225-F04C7E8A3327}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DSLink", "DSLink\DSLink.csproj", "{F3BB4F78-EC61-42E2-8F1D-41C06D54617A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{875BC092-C3A1-4EED-9225-F04C7E8A3327}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{875BC092-C3A1-4EED-9225-F04C7E8A3327}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{875BC092-C3A1-4EED-9225-F04C7E8A3327}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{875BC092-C3A1-4EED-9225-F04C7E8A3327}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F3BB4F78-EC61-42E2-8F1D-41C06D54617A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F3BB4F78-EC61-42E2-8F1D-41C06D54617A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F3BB4F78-EC61-42E2-8F1D-41C06D54617A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F3BB4F78-EC61-42E2-8F1D-41C06D54617A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {57D117BA-9047-40BD-8CED-40821F76080A}
+	EndGlobalSection
+EndGlobal
