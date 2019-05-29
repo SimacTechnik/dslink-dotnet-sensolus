@@ -60,11 +60,11 @@ namespace dslink_dotnet_sensolus
         {
             StringBuilder sb = new StringBuilder("INSERT INTO Dim_Rule (id, title, type, deviceserials, zonelst) VALUES ");
             sb.Append(
-                String.Join(", ", list.Select(x => $"({x.Id}, '{x.Title?.Replace("'", "''") ?? "NULL"}', '" +
-                    $"{x.Type?.Replace("'", "''") ?? "NULL"}', '" +
-                    $"{x.Deviceserials?.Replace("'", "''") ?? "NULL"}', '" +
-                    $"{x.Zonelst?.Replace("'", "''") ?? "NULL"}')")
-                    .ToArray<string>()
+                String.Join(", ", list.Select(x => $"({x.Id}, " +
+                    $"{SqlConvert.Convert(x.Title)}, " +
+                    $"{SqlConvert.Convert(x.Type)}, " +
+                    $"{SqlConvert.Convert(x.Deviceserials)}, " +
+                    $"{SqlConvert.Convert(x.Zonelst)})")
                 )
             );
             return sb.ToString();
@@ -73,7 +73,7 @@ namespace dslink_dotnet_sensolus
         public string DeleteSql(List<DimRule> list)
         {
             StringBuilder sb = new StringBuilder("UPDATE Dim_Zone SET validto = now() WHERE validto IS NULL AND id IN (");
-            sb.Append(String.Join(", ", list.Select(x => $"{x.Id}").ToArray()));
+            sb.Append(String.Join(", ", list.Select(x => $"{x.Id}")));
             sb.Append(')');
             return sb.ToString();
         }

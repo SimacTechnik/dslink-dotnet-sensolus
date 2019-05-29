@@ -2,6 +2,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Data.SqlTypes;
 using System.Data;
 using System.Linq;
 using System.Text;
@@ -69,11 +70,11 @@ namespace dslink_dotnet_sensolus
         {
             StringBuilder sb = new StringBuilder("INSERT INTO Dim_Tracker (serial, name, productkey, thirdpartyid, tags) VALUES ");
             sb.Append(
-                String.Join(", ", list.Select(x => $"('{x.Serial.Replace("'", "''")}', '{x.Name?.Replace("'", "''") ?? "NULL"}', '" +
-                    $"{x.Productkey?.Replace("'", "''") ?? "NULL"}', '" +
-                    $"{x.Thirdpartyid?.Replace("'", "''") ?? "NULL"}', '" +
-                    $"{x.Tags?.Replace("'", "''") ?? "NULL"}')")
-                    .ToArray<string>()
+                String.Join(", ", list.Select(x => $"({SqlConvert.Convert(x.Serial)}, " +
+                    $"{SqlConvert.Convert(x.Name)}, " +
+                    $"{SqlConvert.Convert(x.Productkey)}, " +
+                    $"{SqlConvert.Convert(x.Thirdpartyid)}, " +
+                    $"{SqlConvert.Convert(x.Tags)})")
                 )
             );
             return sb.ToString();
@@ -81,7 +82,7 @@ namespace dslink_dotnet_sensolus
         public string DeleteSql(List<DimTracker> list)
         {
             StringBuilder sb = new StringBuilder("UPDATE Dim_Tracker SET validto = now() WHERE validto IS NULL AND serial IN (");
-            sb.Append(String.Join(", ", list.Select(x => $"'{x.Serial.Replace("'", "''")}'").ToArray()));
+            sb.Append(String.Join(", ", list.Select(x => $"'{x.Serial.Replace("'", "''")}'")));
             sb.Append(')');
             return sb.ToString();
         }

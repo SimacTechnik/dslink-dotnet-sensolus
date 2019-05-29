@@ -58,10 +58,10 @@ namespace dslink_dotnet_sensolus
         {
             StringBuilder sb = new StringBuilder("INSERT INTO Dim_Zone (id, name, geometry, tags) VALUES ");
             sb.Append(
-                String.Join(", ", list.Select(x => $"({x.Id}, '{x.Name?.Replace("'", "''") ?? "NULL"}', '" +
-                    $"{x.Geometry?.Replace("'", "''") ?? "NULL"}', '" +
-                    $"{x.Tags?.Replace("'", "''") ?? "NULL"}')")
-                    .ToArray<string>()
+                String.Join(", ", list.Select(x => $"({x.Id}, " +
+                    $"{SqlConvert.Convert(x.Name)}, " +
+                    $"{SqlConvert.Convert(x.Geometry)}, " +
+                    $"{SqlConvert.Convert(x.Tags)})")
                 )
             );
             return sb.ToString();
@@ -70,7 +70,7 @@ namespace dslink_dotnet_sensolus
         public string DeleteSql(List<DimZone> list)
         {
             StringBuilder sb = new StringBuilder("UPDATE Dim_Zone SET validto = now() WHERE validto IS NULL AND id IN (");
-            sb.Append(String.Join(", ", list.Select(x => $"{x.Id}").ToArray()));
+            sb.Append(String.Join(", ", list.Select(x => $"{x.Id}")));
             sb.Append(')');
             return sb.ToString();
         }
