@@ -80,5 +80,12 @@ namespace dslink_dotnet_sensolus
                 )
                 .ToList();
         }
+
+        public static void ClearFactTrackers(this DatabaseWrapper conn)
+        {
+            IDbCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Fact_Tracker;";
+            cmd.ExecuteNonQuery();
+        }
     }
 }

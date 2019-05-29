@@ -20,32 +20,23 @@ namespace dslink_dotnet_sensolus
 
         static void Main(string[] args)
         {
-            SensolusCfg cfg = new SensolusCfg();
-            cfg.ApiKey = "e45e5cfe125c44adad15e7602246700e";
-            cfg.Database = "tracking";
-            cfg.Host = "10.16.50.10";
-            cfg.Port = 5432;
-            cfg.User = "trkdbusr";
-            cfg.Password = "9%b73%ZxD!)6";
-            DataProcessor dp = new DataProcessor(cfg);
-            dp.Run(NpgsqlFactory.Instance);
-            //Parser.Default.ParseArguments<CommandLineArguments>(args)
-            //    .WithParsed(cmdLineOptions =>
-            //    {
-            //        cmdLineOptions = ProcessDSLinkJson(cmdLineOptions);
+            Parser.Default.ParseArguments<CommandLineArguments>(args)
+                .WithParsed(cmdLineOptions =>
+                {
+                    cmdLineOptions = ProcessDSLinkJson(cmdLineOptions);
 
-            //        //Init the logging engine
-            //        InitializeLogging(cmdLineOptions);
+                    //Init the logging engine
+                    InitializeLogging(cmdLineOptions);
 
-            //        //Construct a link Configuration
-            //        var config = new Configuration(cmdLineOptions.LinkName, false, true);
+                    //Construct a link Configuration
+                    var config = new Configuration(cmdLineOptions.LinkName, false, true);
 
-            //        //Construct our custom link
-            //        var dslink = new SensolusLink(config, cmdLineOptions);
+                    //Construct our custom link
+                    var dslink = new SensolusLink(config, cmdLineOptions);
 
-            //        InitializeLink(dslink).Wait();
-            //    })
-            //    .WithNotParsed(errors => { Environment.Exit(-1); });
+                    InitializeLink(dslink).Wait();
+                })
+                .WithNotParsed(errors => { Environment.Exit(-1); });
         }
 
         public static async Task InitializeLink(SensolusLink dsLink)
@@ -128,6 +119,29 @@ namespace dslink_dotnet_sensolus
                 });
                 node.SetAction(new ActionHandler(Permission.Config, _createConnection));
             });
+
+            Task.Run(() =>
+            {
+                long i = 0;
+                while (true)
+                {
+                    lock (connCfgs)
+                    {
+                        foreach (var cfg in connCfgs.Values)
+                        {
+                            if (i % cfg.Interval == 0)
+                            {
+                                Task.Run(() =>
+                                {
+                                    DataProcessor dp = new DataProcessor(cfg);
+                                    dp.Run(NpgsqlFactory.Instance);
+                                });
+                            }
+                        }
+                    }
+                    Thread.Sleep(TimeSpan.FromMinutes(1));
+                }
+            });
         }
 
         private void _createConnection(InvokeRequest request)
@@ -137,6 +151,7 @@ namespace dslink_dotnet_sensolus
             if(connCfgs.ContainsKey(name))
             {
                 // ERROR
+                return;
             }
             cfg.ApiKey = request.Parameters["apiKey"].Value<String>();
             cfg.Host = request.Parameters["DB Address"].Value<String>();
@@ -146,7 +161,10 @@ namespace dslink_dotnet_sensolus
             cfg.Password = request.Parameters["DB Password"].Value<String>();
             cfg.Interval = request.Parameters["Interval (minutes)"].Value<int>();
             cfg.Pool = request.Parameters["Pool"].Value<bool>();
-            connCfgs.Add(name, cfg);
+            lock(connCfgs)
+            {
+                connCfgs.Add(name, cfg);
+            }
             Responder.SuperRoot.CreateChild("name", "connNode").BuildNode();
         }
 
@@ -154,15 +172,6 @@ namespace dslink_dotnet_sensolus
         public override void InitializeDefaultNodes()
         {
             Responder.SuperRoot.CreateChild("addConnection", "connAdd").BuildNode();
-        }
-
-        private void _updateRandomNumbers()
-        {
-            while (Thread.CurrentThread.IsAlive)
-            {
-
-                Thread.Sleep(1);
-            }
         }
 
         #region Initialize Logging

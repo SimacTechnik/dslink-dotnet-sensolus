@@ -14,5 +14,6 @@ namespace dslink_dotnet_sensolus
         public string User { get; set; }
         public string Password { get; set; }
         public bool Pool { get; set; }
+        public bool Clean { get; set; }
     }
 }

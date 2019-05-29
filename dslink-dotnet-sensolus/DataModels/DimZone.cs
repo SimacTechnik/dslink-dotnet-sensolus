@@ -70,7 +70,7 @@ namespace dslink_dotnet_sensolus
         public static List<DimZone> GetZones(this DatabaseWrapper conn)
         {
             IDbCommand cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT * FROM Dim_Zones WHERE validto IS NULL;";
+            cmd.CommandText = "SELECT * FROM Dim_Zone WHERE validto IS NULL;";
             List<DimZone> data = new List<DimZone>();
             using (IDataReader reader = cmd.ExecuteReader())
             {
@@ -108,6 +108,13 @@ namespace dslink_dotnet_sensolus
                     }
                 )
                 .ToList();
+        }
+
+        public static void ClearZones(this DatabaseWrapper conn)
+        {
+            IDbCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Dim_Zone;";
+            cmd.ExecuteNonQuery();
         }
     }
 }

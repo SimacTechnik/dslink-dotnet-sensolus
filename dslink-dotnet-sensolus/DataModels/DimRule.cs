@@ -112,5 +112,12 @@ namespace dslink_dotnet_sensolus
                 })
                 .ToList();
         }
+
+        public static void ClearRules(this DatabaseWrapper conn)
+        {
+            IDbCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Dim_Rule;";
+            cmd.ExecuteNonQuery();
+        }
     }
 }

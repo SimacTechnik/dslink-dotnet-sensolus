@@ -100,5 +100,12 @@ namespace dslink_dotnet_sensolus
             }
             return output;
         }
+
+        public static void ClearAlerts(this DatabaseWrapper conn)
+        {
+            IDbCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Fact_Alert;";
+            cmd.ExecuteNonQuery();
+        }
     }
 }

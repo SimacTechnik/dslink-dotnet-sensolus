@@ -31,6 +31,15 @@ namespace dslink_dotnet_sensolus
                 {
                     client.Open();
                     transaction = client.BeginTransaction();
+                    if(cfg.Clean)
+                    {
+                        client.ClearAlerts();
+                        client.ClearActivities();
+                        client.ClearFactTrackers();
+                        client.ClearZones();
+                        client.ClearRules();
+                        client.ClearDimTrackers();
+                    }
                     FirstPhase(client);
                     SecondPhase(client, cfg.Interval, true);
                     ThirdPhase(client);
@@ -42,10 +51,10 @@ namespace dslink_dotnet_sensolus
             {
                 transaction?.Rollback();
             }
-            //catch (ArgumentException e)
-            //{
+            catch (ArgumentException e)
+            {
                 //wrong SQL Connection string
-            //}
+            }
         }
 
         public void FirstPhase(DatabaseWrapper conn)
@@ -67,12 +76,10 @@ namespace dslink_dotnet_sensolus
             conn.Insert(toAdd);
         }
 
-        public void SecondPhase(DatabaseWrapper conn, int interval, bool import = false)
+        public void SecondPhase(DatabaseWrapper conn, int interval)
         {
             Dictionary<string, DimTracker> trackers = conn.GetDimTrackers().ToDictionary(x => x.GetKeyValue(), x => x);
-            DateTime from = DateTime.MinValue;
-            if (!import)
-                from = DateTime.Now.AddMinutes(-interval);
+            DateTime from = DateTime.Now.AddMinutes(-interval*2);
             DateTime to = DateTime.Now;
             Dictionary<long, FactActivity> dbData = conn.GetActivities(from, to).ToDictionary(x => x.GetKeyValue(), x => x);
             List<FactActivity> sensolusData = api.GetActivities(from, to, trackers);

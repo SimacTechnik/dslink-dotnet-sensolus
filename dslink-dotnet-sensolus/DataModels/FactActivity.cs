@@ -162,5 +162,12 @@ namespace dslink_dotnet_sensolus
             }
             return output;
         }
+
+        public static void ClearActivities(this DatabaseWrapper conn)
+        {
+            IDbCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Fact_Activity;";
+            cmd.ExecuteNonQuery();
+        }
     }
 }

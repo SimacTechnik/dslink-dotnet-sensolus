@@ -42,15 +42,5 @@ namespace dslink_dotnet_sensolus
             DataBuffer[hash] = data;
             return data;
         }
-
-        public void Insert<T>(List<T> data)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Delete<T>(List<T> data)
-        {
-            throw new NotImplementedException();
-        }
     }
 }
