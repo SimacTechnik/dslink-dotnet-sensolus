@@ -14,12 +14,6 @@ namespace dslink_dotnet_sensolus
         private SensolusCfg cfg;
         private API api;
 
-        private static string GET_DIM_TRACKERS = "SELECT * FROM Dim_Tracker WHERE validto IS NULL;";
-        private static string GET_DIM_ZONES = "SELECT * FROM Dim_Zone WHERE validto IS NULL;";
-        private static string GET_DIM_RULES = "SELECT * FROM Dim_Rule WHERE validto IS NULL;";
-        private static string GET_FACT_ALERT = "SELECT * FROM Fact_Alert;";
-        private static string GET_FACT_TRACKER = "SELECT * FROM Fact_Tracker;";
-
         public DataProcessor(SensolusCfg cfg)
         {
             this.cfg = cfg;
@@ -31,11 +25,10 @@ namespace dslink_dotnet_sensolus
             IDbTransaction transaction = null;
             try
             {
-                using (IDbConnection client = factory.CreateConnection())
+                var connectionStringBuilder = factory.CreateConnectionStringBuilder();
+                connectionStringBuilder.ConnectionString = $"Server={cfg.Host};Database={cfg.Database};User ID={cfg.User};Password={cfg.Password}";
+                using (DatabaseWrapper client = new DatabaseWrapper(factory, connectionStringBuilder.ToString()))
                 {
-                    var connectionStringBuilder = factory.CreateConnectionStringBuilder();
-                    connectionStringBuilder.ConnectionString = $"Server={cfg.Host};Database={cfg.Database};User ID={cfg.User};Password={cfg.Password}";
-                    client.ConnectionString = connectionStringBuilder.ToString();
                     client.Open();
                     transaction = client.BeginTransaction();
                     FirstPhase(client);
@@ -49,70 +42,40 @@ namespace dslink_dotnet_sensolus
             {
                 transaction?.Rollback();
             }
-            catch (ArgumentException e)
-            {
+            //catch (ArgumentException e)
+            //{
                 //wrong SQL Connection string
-            }
+            //}
         }
 
-        public void FirstPhase(IDbConnection conn)
+        public void FirstPhase(DatabaseWrapper conn)
         {
-            ManageDim(conn, DimTracker.EmptyInstance, GET_DIM_TRACKERS, api.GetDimTrackers().ToDictionary(x => x.GetKeyValue(), x => x));
-            ManageDim(conn, DimRule.EmptyInstance, GET_DIM_RULES, api.GetRules().ToDictionary(x => x.GetKeyValue(), x => x));
-            ManageDim(conn, DimZone.EmptyInstance, GET_DIM_ZONES, api.GetZones().ToDictionary(x => x.GetKeyValue(), x => x));
-            IDbCommand cmd = conn.CreateCommand();
-            cmd.CommandText = GET_DIM_TRACKERS;
-            Dictionary<string, DimTracker> dbTrackers;
-            using (IDataReader reader = cmd.ExecuteReader())
-            {
-                dbTrackers = DimTracker.EmptyInstance.FromDataReader(reader).ToDictionary(x => x.GetKeyValue(), x => x);
-            }
-            FactTracker.EmptyInstance.SetTrackers(dbTrackers);
-            cmd.CommandText = GET_FACT_TRACKER;
-            Dictionary<string, FactTracker> factTrackers;
-            using (IDataReader reader = cmd.ExecuteReader())
-            {
-                factTrackers = FactTracker.EmptyInstance.FromDataReader(reader).ToDictionary(x => x.GetKeyValue(), x => x);
-            }
-            var sensolusFactTrackers = api.GetFactTrackers();
+            CompareData(conn.GetDimTrackers().ToDictionary(x => x.GetKeyValue(), x => x), api.GetDimTrackers().ToDictionary(x => x.GetKeyValue(), x => x), conn.Insert, conn.Delete);
+            CompareData(conn.GetRules().ToDictionary(x => x.GetKeyValue(), x => x), api.GetRules().ToDictionary(x => x.GetKeyValue(), x => x), conn.Insert, conn.Delete);
+            CompareData(conn.GetZones().ToDictionary(x => x.GetKeyValue(), x => x), api.GetZones().ToDictionary(x => x.GetKeyValue(), x => x), conn.Insert, conn.Delete);
+            Dictionary<string, DimTracker> trackers = conn.GetDimTrackers().ToDictionary(x => x.GetKeyValue(), x => x);
+            Dictionary<string, FactTracker> dbFactTrackers = conn.GetFactTrackers().ToDictionary(x => x.GetKeyValue(), x => x); ;
+            List<FactTracker> sensolusFactTrackers = api.GetFactTrackers(trackers);
             List<FactTracker> toAdd = new List<FactTracker>();
             foreach(var fact in sensolusFactTrackers)
             {
-                if(!factTrackers.ContainsKey(fact.GetKeyValue()))
+                if(!dbFactTrackers.ContainsKey(fact.GetKeyValue()))
                 {
                     toAdd.Add(fact);
                 }
             }
-            if (toAdd.Count != 0)
-            {
-                cmd.CommandText = FactTracker.EmptyInstance.InsertSql(toAdd);
-                cmd.ExecuteNonQuery();
-            }
+            conn.Insert(toAdd);
         }
 
-        public void SecondPhase(IDbConnection conn, int interval, bool import = false)
+        public void SecondPhase(DatabaseWrapper conn, int interval, bool import = false)
         {
-            IDbCommand cmd = conn.CreateCommand();
-            cmd.CommandText = GET_DIM_TRACKERS;
-            Dictionary<string, DimTracker> trackers;
-            using (IDataReader reader = cmd.ExecuteReader())
-            {
-                trackers = DimTracker.EmptyInstance.FromDataReader(reader).ToDictionary(x => x.GetKeyValue(), x => x);
-            }
-            FactActivity.EmptyInstance.SetTrackers(trackers);
+            Dictionary<string, DimTracker> trackers = conn.GetDimTrackers().ToDictionary(x => x.GetKeyValue(), x => x);
             DateTime from = DateTime.MinValue;
             if (!import)
                 from = DateTime.Now.AddMinutes(-interval);
             DateTime to = DateTime.Now;
-            Dictionary<long, FactActivity> dbData;
-            cmd.CommandText = $"SELECT * FROM Fact_Activity WHERE evttime BETWEEN '" +
-                $"{from.ToString("yyyy-MM-dd HH:mm:ss")}' AND '" +
-                $"{to.ToString("yyyy-MM-dd HH:mm:ss")}'";
-            using (IDataReader reader = cmd.ExecuteReader())
-            {
-                dbData = FactActivity.EmptyInstance.FromDataReader(reader).ToDictionary(x => x.GetKeyValue(), x => x);
-            }
-            List<FactActivity> sensolusData = api.GetActivities(from, to, trackers.Select(x => x.Key).ToArray());
+            Dictionary<long, FactActivity> dbData = conn.GetActivities(from, to).ToDictionary(x => x.GetKeyValue(), x => x);
+            List<FactActivity> sensolusData = api.GetActivities(from, to, trackers);
             List<FactActivity> toAdd = new List<FactActivity>();
             foreach(var obj in sensolusData)
             {
@@ -121,40 +84,18 @@ namespace dslink_dotnet_sensolus
                     toAdd.Add(obj);
                 }
             }
-            if (toAdd.Count != 0)
-            {
-                cmd.CommandText = FactActivity.EmptyInstance.InsertSql(toAdd);
-                cmd.ExecuteNonQuery();
-            }
+            conn.Insert(toAdd);
         }
 
-        public void ThirdPhase(IDbConnection conn)
+        public void ThirdPhase(DatabaseWrapper conn)
         {
-            IDbCommand cmd = conn.CreateCommand();
-            cmd.CommandText = GET_DIM_RULES;
-            Dictionary<long, DimRule> rules;
-            using (IDataReader reader = cmd.ExecuteReader())
-            {
-                rules = DimRule.EmptyInstance.FromDataReader(reader).ToDictionary(x => x.GetKeyValue(), x => x);
-            }
-            FactAlert.EmptyInstance.SetRules(rules);
-
-            cmd.CommandText = GET_DIM_TRACKERS;
-            string[] serials;
-            using (IDataReader reader = cmd.ExecuteReader())
-            {
-                serials = DimTracker.EmptyInstance.FromDataReader(reader).Select(x => x.Serial).ToArray();
-            }
+            Dictionary<long, DimRule> rules = conn.GetRules().ToDictionary(x => x.GetKeyValue(), x => x);
+            string[] serials = conn.GetDimTrackers().Select(x => x.Serial).ToArray();
 
             DateTime from = DateTime.MinValue;
             DateTime to = DateTime.Now;
-            Dictionary<string, FactActivity> activities;
-            cmd.CommandText = $"SELECT * FROM Fact_Activity WHERE evttime BETWEEN '" +
-                $"{from.ToString("yyyy-MM-dd HH:mm:ss")}' AND '" +
-                $"{to.ToString("yyyy-MM-dd HH:mm:ss")}'";
-            using (IDataReader reader = cmd.ExecuteReader())
-            {
-                activities = FactActivity.EmptyInstance.FromDataReader(reader)
+
+            Dictionary<string, FactActivity> activities = conn.GetActivities(from, to)
                     .GroupBy(x => x.Evttime.ToString()+x.Serial)
                     .Select(x => {
                         var list = x.ToList();
@@ -165,17 +106,8 @@ namespace dslink_dotnet_sensolus
                         else return list[0];
                     })
                     .ToDictionary(x => x.Evttime.ToString()+x.Serial, x => x);
-            }
-            FactAlert.EmptyInstance.SetActivities(activities);
-
-            cmd.CommandText = GET_FACT_ALERT;
-            Dictionary<string, FactAlert> dbObjs;
-            using (IDataReader reader = cmd.ExecuteReader())
-            {
-                dbObjs = FactAlert.EmptyInstance.FromDataReader(reader).ToDictionary(x => x.GetKeyValue(), x => x);
-            }
-
-            List<FactAlert> sensolusData = api.GetAlerts(serials);
+            Dictionary<string, FactAlert> dbObjs = conn.GetAlerts().ToDictionary(x => x.GetKeyValue(), x => x);
+            List<FactAlert> sensolusData = api.GetAlerts(serials, activities, rules);
             List<FactAlert> toAdd = new List<FactAlert>();
             foreach(var alert in sensolusData)
             {
@@ -184,25 +116,15 @@ namespace dslink_dotnet_sensolus
                     toAdd.Add(alert);
                 }
             }
-            if (toAdd.Count != 0)
-            {
-                cmd.CommandText = FactAlert.EmptyInstance.InsertSql(toAdd);
-                cmd.ExecuteNonQuery();
-            }
+            conn.Insert(toAdd);
         }
 
-        public void ManageDim<T, TT>(IDbConnection conn, DataModel<T> obj, string sql, Dictionary<TT, T> sensolusObjs) where T : IKeyValue<TT>, IEquatable<T>
+        public void CompareData<T, TT>(Dictionary<TT, T> dbObjs, Dictionary<TT, T> sensolusObjs, Action<List<T>> addAction, Action<List<T>> deleteAction) where T : IKeyValue<TT>, IEquatable<T>
         {
-            IDbCommand cmd = conn.CreateCommand();
-            cmd.CommandText = sql;
-            Dictionary<TT, T> dbObjs;
-            using (IDataReader reader = cmd.ExecuteReader())
-            {
-                dbObjs = obj.FromDataReader(reader).ToDictionary(x => x.GetKeyValue(), x => x);
-            }
             List<T> toAdd = new List<T>();
             List<T> toUpdate = new List<T>();
             List<T> toDelete = new List<T>();
+
             foreach (TT key in sensolusObjs.Keys)
             {
                 if (dbObjs.ContainsKey(key))
@@ -217,6 +139,7 @@ namespace dslink_dotnet_sensolus
                     toAdd.Add(sensolusObjs[key]);
                 }
             }
+
             foreach (TT key in dbObjs.Keys)
             {
                 if (!sensolusObjs.ContainsKey(key))
@@ -224,23 +147,11 @@ namespace dslink_dotnet_sensolus
                     toDelete.Add(dbObjs[key]);
                 }
             }
-            if(toAdd.Count != 0)
-            {
-                cmd.CommandText = obj.InsertSql(toAdd);
-                cmd.ExecuteNonQuery();
-            }
-            if (toDelete.Count != 0)
-            {
-                cmd.CommandText = obj.DeleteSql(toDelete);
-                cmd.ExecuteNonQuery();
-            }
-            if (toUpdate.Count != 0)
-            {
-                cmd.CommandText = obj.DeleteSql(toUpdate);
-                cmd.ExecuteNonQuery();
-                cmd.CommandText = obj.InsertSql(toUpdate);
-                cmd.ExecuteNonQuery();
-            }
+
+            addAction(toAdd);
+            deleteAction(toDelete);
+            deleteAction(toUpdate);
+            addAction(toUpdate);
         }
     }
 }
