@@ -70,6 +70,30 @@ namespace dslink_dotnet_sensolus
             cmd.ExecuteNonQuery();
         }
 
+        public static FactActivity GetLatestActivity(this DatabaseWrapper conn, string serial)
+        {
+            IDbCommand cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT * FROM Fact_Activity WHERE serial = " + SqlConvert.Convert(serial) + " ORDER BY inserttime DESC LIMIT 1";
+            using (IDataReader reader = cmd.ExecuteReader())
+            {
+                if (!reader.Read()) return null;
+                FactActivity obj = new FactActivity();
+                obj.Id = (long)reader["id"];
+                obj.Evttime = (DateTime)reader["evttime"];
+                obj.Inserttime = (DateTime)reader["inserttime"];
+                obj.Serial = (string)reader["serial"];
+                obj.Evttype = (string)reader["evttype"];
+                obj.Lat = (DBNull.Value == reader["lat"]) ? null : (double?)reader["lat"];
+                obj.Lon = (DBNull.Value == reader["lon"]) ? null : (double?)reader["lon"];
+                obj.Src = (string)reader["src"];
+                obj.Accuracy = (DBNull.Value == reader["accuracy"]) ? null : (int?)reader["accuracy"];
+                obj.Address = (DBNull.Value == reader["address"]) ? null : (string)reader["address"];
+                obj.Geozones = (DBNull.Value == reader["geozones"]) ? null : (string)reader["geozones"];
+                obj.Trackerrecid = (long)reader["trackerrecid"];
+                return obj;
+            }
+        }
+
         public static List<FactActivity> GetActivities(this DatabaseWrapper conn, DateTime from, DateTime to)
         {
             IDbCommand cmd = conn.CreateCommand();

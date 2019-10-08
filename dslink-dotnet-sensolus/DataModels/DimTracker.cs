@@ -20,6 +20,7 @@ namespace dslink_dotnet_sensolus
         public string Productkey { get; set; }
         public string Thirdpartyid { get; set; }
         public string Tags { get; set; }
+        public TBMap? TBRef { get; set; }
 
         public bool Equals(DimTracker other)
         {
@@ -39,17 +40,18 @@ namespace dslink_dotnet_sensolus
 
         public static void Insert(this DatabaseWrapper conn, List<DimTracker> list)
         {
-            if(list.Count == 0)
+            if (list.Count == 0)
             {
                 return;
             }
-            StringBuilder sb = new StringBuilder("INSERT INTO Dim_Tracker (serial, name, productkey, thirdpartyid, tags) VALUES ");
+            StringBuilder sb = new StringBuilder("INSERT INTO Dim_Tracker (serial, name, productkey, thirdpartyid, tags, tbref) VALUES ");
             sb.Append(
                 String.Join(", ", list.Select(x => $"({SqlConvert.Convert(x.Serial)}, " +
                     $"{SqlConvert.Convert(x.Name)}, " +
                     $"{SqlConvert.Convert(x.Productkey)}, " +
                     $"{SqlConvert.Convert(x.Thirdpartyid)}, " +
-                    $"{SqlConvert.Convert(x.Tags)})")
+                    $"{SqlConvert.Convert(x.Tags)}, " +
+                    $"{SqlConvert.Convert(x.TBRef?.TBRef)})")
                 )
             );
             IDbCommand cmd = conn.CreateCommand();
@@ -58,7 +60,7 @@ namespace dslink_dotnet_sensolus
         }
         public static void Delete(this DatabaseWrapper conn, List<DimTracker> list)
         {
-            if(list.Count == 0)
+            if (list.Count == 0)
             {
                 return;
             }
@@ -88,10 +90,35 @@ namespace dslink_dotnet_sensolus
                     obj.Productkey = (DBNull.Value == reader["productkey"]) ? null : (string)reader["productkey"];
                     obj.Thirdpartyid = (DBNull.Value == reader["thirdpartyid"]) ? null : (string)reader["thirdpartyid"];
                     obj.Tags = (DBNull.Value == reader["tags"]) ? null : (string)reader["tags"];
+                    obj.TBRef = (DBNull.Value == reader["tbref"]) ? (TBMap?)null : conn.GetTBMap((long)reader["tbref"]);
                     data.Add(obj);
                 }
             }
             return data;
+        }
+
+        public static DimTracker GetDimTracker(this DatabaseWrapper conn, string serial)
+        {
+            IDbCommand cmd = conn.CreateCommand();
+            cmd.CommandText = $"SELECT * FROM Dim_Tracker WHERE validto IS NULL AND serial = {SqlConvert.Convert(serial)};";
+            using (IDataReader reader = cmd.ExecuteReader())
+            {
+                if(!reader.Read())
+                {
+                    return null;
+                }
+                DimTracker obj = new DimTracker();
+                obj.Recid = (long)reader["recid"];
+                obj.Serial = (string)reader["serial"];
+                obj.Validfrom = (DateTime)reader["validfrom"];
+                obj.Validto = (DBNull.Value == reader["validto"]) ? null : (DateTime?)reader["validto"];
+                obj.Name = (DBNull.Value == reader["name"]) ? null : (string)reader["name"];
+                obj.Productkey = (DBNull.Value == reader["productkey"]) ? null : (string)reader["productkey"];
+                obj.Thirdpartyid = (DBNull.Value == reader["thirdpartyid"]) ? null : (string)reader["thirdpartyid"];
+                obj.Tags = (DBNull.Value == reader["tags"]) ? null : (string)reader["tags"];
+                obj.TBRef = (DBNull.Value == reader["tbref"]) ? (TBMap?)null : conn.GetTBMap((long)reader["tbref"]);
+                return obj;
+            }
         }
 
         public static List<DimTracker> GetDimTrackers(this API api)
@@ -107,7 +134,8 @@ namespace dslink_dotnet_sensolus
                     Name = x["name"]?.Value<string>(),
                     Productkey = x["productKey"]?.Value<string>(),
                     Thirdpartyid = x["thirdPartyId"]?.Value<string>(),
-                    Tags = x["deviceTags"]?.ToString(Newtonsoft.Json.Formatting.None)
+                    Tags = x["deviceTags"]?.ToString(Newtonsoft.Json.Formatting.None),
+                    TBRef = null
                 })
                 .ToList();
         }

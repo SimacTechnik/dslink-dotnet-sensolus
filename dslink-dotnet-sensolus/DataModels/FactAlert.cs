@@ -50,6 +50,20 @@ namespace dslink_dotnet_sensolus
             cmd.ExecuteNonQuery();
         }
 
+        public static void Update(this DatabaseWrapper conn, List<FactAlert> list)
+        {
+            if(list.Count == 0)
+            {
+                return;
+            }
+            StringBuilder sb = new StringBuilder("DELETE FROM Fact_Alert WHERE concat_ws(',', alerttime, alerttype, alertruleid, trackerserial) in (");
+            sb.Append(String.Join(", ", list.Select(x => $"'{x.Alerttime.ToString("yyyy-MM-dd HH:mm:sszz").Replace("'", "''")},{x.Alerttype},{x.Alertruleid},{x.Trackerserial}'")) + ')');
+            IDbCommand cmd = conn.CreateCommand();
+            cmd.CommandText = sb.ToString();
+            cmd.ExecuteNonQuery();
+            conn.Insert(list);
+        }
+
         public static List<FactAlert> GetAlerts(this DatabaseWrapper conn)
         {
             IDbCommand cmd = conn.CreateCommand();
@@ -92,10 +106,28 @@ namespace dslink_dotnet_sensolus
                         Trackerserial = x["monitoredEntity"]["sigfoxDevice"]["serial"].Value<string>(),
                         Severity = x["alertRule"]["severity"].Value<string>(),
                         Alerttitle = x["title"]?.Value<string>(),
-                        Alertactivity = activities[DateTime.Parse(x["date"].Value<string>()).ToString() + x["monitoredEntity"]["sigfoxDevice"]["serial"].Value<string>()].Id,
-                        Rulerecid = rules[x["alertRule"]["id"].Value<long>()].Recid,
+                        Alertactivity = activities.ContainsKey(DateTime.Parse(x["date"].Value<string>()).ToString() + x["monitoredEntity"]["sigfoxDevice"]["serial"].Value<string>()) ? activities[DateTime.Parse(x["date"].Value<string>()).ToString() + x["monitoredEntity"]["sigfoxDevice"]["serial"].Value<string>()].Id : -1,
+                        Rulerecid = rules.ContainsKey(x["alertRule"]["id"].Value<long>()) ? rules[x["alertRule"]["id"].Value<long>()].Recid : -1,
                         Alertclear = x["clear"] == null ? (DateTime?)null : DateTime.Parse(x["clear"].Value<string>())
                     })
+                    .Where(x => x.Alertactivity != -1 && x.Rulerecid != -1)
+                    .ToList());
+                jResponse = api.Call($"/api/v1/devices/{serial}/alerts/active", Method.GET, null);
+                output.AddRange(
+                    jResponse
+                    .Select(x => new FactAlert
+                    {
+                        Alerttime = DateTime.Parse(x["date"].Value<string>()),
+                        Alerttype = x["alertType"].Value<string>(),
+                        Alertruleid = x["alertRule"]["id"].Value<long>(),
+                        Trackerserial = x["monitoredEntity"]["sigfoxDevice"]["serial"].Value<string>(),
+                        Severity = x["alertRule"]["severity"].Value<string>(),
+                        Alerttitle = x["title"]?.Value<string>(),
+                        Alertactivity = activities.ContainsKey(DateTime.Parse(x["date"].Value<string>()).ToString() + x["monitoredEntity"]["sigfoxDevice"]["serial"].Value<string>()) ? activities[DateTime.Parse(x["date"].Value<string>()).ToString() + x["monitoredEntity"]["sigfoxDevice"]["serial"].Value<string>()].Id : -1,
+                        Rulerecid = rules.ContainsKey(x["alertRule"]["id"].Value<long>()) ? rules[x["alertRule"]["id"].Value<long>()].Recid : -1,
+                        Alertclear = (DateTime?)null
+                    })
+                    .Where(x => x.Alertactivity != -1 && x.Rulerecid != -1)
                     .ToList());
             }
             return output;

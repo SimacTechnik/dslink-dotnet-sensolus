@@ -16,11 +16,13 @@ namespace dslink_dotnet_sensolus
         private RestClient client = new RestClient(@"https://stickntrack.sensolus.com:443/rest");
         private RestRequest request = new RestRequest();
         private Dictionary<long, JArray> DataBuffer { get; set; } = new Dictionary<long, JArray>();
+        private int reqCount = 0;
+        public int Count { get => reqCount; }
 
         public API(string apiKey)
         {
             this.apiKey = apiKey;
-            client.AddDefaultParameter("apiKey", apiKey, ParameterType.QueryString);
+            client.AddDefaultParameter("apiKey", this.apiKey, ParameterType.QueryString);
             client.AddDefaultHeader("Content-Type", "application/json");
         }
 
@@ -38,9 +40,16 @@ namespace dslink_dotnet_sensolus
             {
                 this.request.Parameters.AddRange(parameters);
             }
-            JArray data = JArray.Parse(client.Execute(request).Content);
+            var tmp = client.Execute(request).Content;
+            reqCount++;
+            JArray data = JArray.Parse(tmp);
             DataBuffer[hash] = data;
             return data;
+        }
+
+        public void ResetCounter()
+        {
+            reqCount = 0;
         }
     }
 }

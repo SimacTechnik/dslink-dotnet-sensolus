@@ -63,12 +63,12 @@ namespace dslink_dotnet_sensolus
             {
                 return;
             }
-            StringBuilder sb = new StringBuilder("UPDATE Dim_Zone SET validto = now() WHERE validto IS NULL AND id IN (");
+            StringBuilder sb = new StringBuilder("UPDATE Dim_Rule SET validto = now() WHERE validto IS NULL AND id IN (");
             sb.Append(String.Join(", ", list.Select(x => $"{x.Id}")));
             sb.Append(')');
             IDbCommand cmd = conn.CreateCommand();
             cmd.CommandText = sb.ToString();
-            cmd.ExecuteNonQuery();
+            int i = cmd.ExecuteNonQuery();
         }
 
         public static List<DimRule> GetRules(this DatabaseWrapper conn)

@@ -32,7 +32,7 @@ namespace dslink_dotnet_sensolus
             }
             else
             {
-                return $"'{val.Value.ToString("yyyy-MM-dd HH:mm:ss").Replace("'", "''")}'";
+                return $"'{val.Value.ToString("yyyy-MM-dd HH:mm:ss.ffff").Replace("'", "''")}'";
             }
         }
 

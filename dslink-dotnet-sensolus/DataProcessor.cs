@@ -11,8 +11,9 @@ namespace dslink_dotnet_sensolus
 {
     class DataProcessor
     {
+
         private SensolusCfg cfg;
-        private API api;
+        public API api;
 
         public DataProcessor(SensolusCfg cfg)
         {
@@ -23,6 +24,8 @@ namespace dslink_dotnet_sensolus
         public void Run(DbProviderFactory factory)
         {
             IDbTransaction transaction = null;
+            api.ResetCounter();
+            DateTime start = DateTime.Now;
             try
             {
                 var connectionStringBuilder = factory.CreateConnectionStringBuilder();
@@ -41,20 +44,59 @@ namespace dslink_dotnet_sensolus
                         client.ClearDimTrackers();
                     }
                     FirstPhase(client);
-                    SecondPhase(client, cfg.Interval, true);
-                    ThirdPhase(client);
+                    SecondPhase(client, cfg.Interval);
+                    string[] serials = client.GetDimTrackers().Select(x => x.Serial).ToArray();
+                    ThirdPhase(client, serials);
                     transaction.Commit();
                     transaction = null;
                 }
             }
-            catch(SqlException)
+            catch(SqlException e)
             {
+                Serilog.Log.Error(e.Message);
+                Serilog.Log.Error(e.StackTrace);
                 transaction?.Rollback();
+                return;
             }
             catch (ArgumentException e)
             {
                 //wrong SQL Connection string
+                Serilog.Log.Error("Wrong SQL Connection string: " + $"Server={cfg.Host};Database={cfg.Database};User ID={cfg.User};Password=*****");
+                Serilog.Log.Error(e.Message);
+                Serilog.Log.Error(e.StackTrace);
+                return;
             }
+            catch (Exception e)
+            {
+                Serilog.Log.Error("Unexpected error");
+                Serilog.Log.Error(e.Message);
+                Serilog.Log.Error(e.StackTrace);
+                return;
+            }
+
+            TimeSpan duration = DateTime.Now - start;
+
+            try
+            {
+                var connectionStringBuilder = factory.CreateConnectionStringBuilder();
+                connectionStringBuilder.ConnectionString = $"Server={cfg.Host};Database={cfg.Database};User ID={cfg.User};Password={cfg.Password}";
+                using (DatabaseWrapper client = new DatabaseWrapper(factory, connectionStringBuilder.ToString()))
+                {
+                    client.Open();
+                    IDbCommand cmd = client.CreateCommand();
+                    cmd.CommandText = $"INSERT INTO log (ts, duration, reqcount, initevent) VALUES ({SqlConvert.Convert(DateTime.Now)}, {duration.TotalMilliseconds}, {api.Count}, 'TS')";
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception e)
+            {
+                Serilog.Log.Error("Could not make log record");
+                Serilog.Log.Error(e.Message);
+                Serilog.Log.Error(e.StackTrace);
+                return;
+            }
+
+            Serilog.Log.Information($"ts: {DateTime.Now}, duration: {duration.TotalMilliseconds}, reqCount: {api.Count}, initevent: TS");
         }
 
         public void FirstPhase(DatabaseWrapper conn)
@@ -78,15 +120,20 @@ namespace dslink_dotnet_sensolus
 
         public void SecondPhase(DatabaseWrapper conn, int interval)
         {
-            Dictionary<string, DimTracker> trackers = conn.GetDimTrackers().ToDictionary(x => x.GetKeyValue(), x => x);
-            DateTime from = DateTime.Now.AddMinutes(-interval*2);
+            SecondPhase(conn, interval, conn.GetDimTrackers());
+        }
+
+        public void SecondPhase(DatabaseWrapper conn, int interval, List<DimTracker> trackersList)
+        {
+            Dictionary<string, DimTracker> trackers = trackersList.ToDictionary(x => x.GetKeyValue(), x => x);
+            DateTime from = DateTime.Now.AddMinutes(-interval * 2);
             DateTime to = DateTime.Now;
             Dictionary<long, FactActivity> dbData = conn.GetActivities(from, to).ToDictionary(x => x.GetKeyValue(), x => x);
             List<FactActivity> sensolusData = api.GetActivities(from, to, trackers);
             List<FactActivity> toAdd = new List<FactActivity>();
-            foreach(var obj in sensolusData)
+            foreach (var obj in sensolusData)
             {
-                if(!dbData.ContainsKey(obj.GetKeyValue()))
+                if (!dbData.ContainsKey(obj.GetKeyValue()))
                 {
                     toAdd.Add(obj);
                 }
@@ -94,11 +141,9 @@ namespace dslink_dotnet_sensolus
             conn.Insert(toAdd);
         }
 
-        public void ThirdPhase(DatabaseWrapper conn)
+        public void ThirdPhase(DatabaseWrapper conn, string[] serials)
         {
             Dictionary<long, DimRule> rules = conn.GetRules().ToDictionary(x => x.GetKeyValue(), x => x);
-            string[] serials = conn.GetDimTrackers().Select(x => x.Serial).ToArray();
-
             DateTime from = DateTime.MinValue;
             DateTime to = DateTime.Now;
 
@@ -116,14 +161,21 @@ namespace dslink_dotnet_sensolus
             Dictionary<string, FactAlert> dbObjs = conn.GetAlerts().ToDictionary(x => x.GetKeyValue(), x => x);
             List<FactAlert> sensolusData = api.GetAlerts(serials, activities, rules);
             List<FactAlert> toAdd = new List<FactAlert>();
-            foreach(var alert in sensolusData)
+            List<FactAlert> toUpdate = new List<FactAlert>();
+            foreach (var alert in sensolusData)
             {
-                if(!dbObjs.ContainsKey(alert.GetKeyValue()))
+                string alertKey = alert.GetKeyValue();
+                if (!dbObjs.ContainsKey(alertKey))
                 {
                     toAdd.Add(alert);
                 }
+                else if(dbObjs[alertKey].Alertclear != alert.Alertclear)
+                {
+                    toUpdate.Add(alert);
+                }
             }
             conn.Insert(toAdd);
+            conn.Update(toUpdate);
         }
 
         public void CompareData<T, TT>(Dictionary<TT, T> dbObjs, Dictionary<TT, T> sensolusObjs, Action<List<T>> addAction, Action<List<T>> deleteAction) where T : IKeyValue<TT>, IEquatable<T>
