@@ -9,7 +9,7 @@ using System.Text;
 
 namespace dslink_dotnet_sensolus
 {
-    public class FactActivity : IKeyValue<long>
+    public class FactActivity : IKeyValue<long>, IEquatable<FactActivity>
     {
         public long Id { get; set; }
         public DateTime Evttime { get; set; }
@@ -23,6 +23,22 @@ namespace dslink_dotnet_sensolus
         public string Address { get; set; }
         public string Geozones { get; set; }
         public long Trackerrecid { get; set; }
+
+        public bool Equals(FactActivity other)
+        {
+            return Id == other.Id &&
+                Evttime == other.Evttime &&
+                Inserttime == other.Inserttime &&
+                Serial == other.Serial &&
+                Evttype == other.Evttype &&
+                Lat == other.Lat &&
+                Lon == other.Lon &&
+                Src == other.Src &&
+                Accuracy == other.Accuracy &&
+                Address == other.Address &&
+                Geozones == other.Geozones &&
+                Trackerrecid == other.Trackerrecid;
+        }
 
         public long GetKeyValue()
         {
@@ -68,6 +84,33 @@ namespace dslink_dotnet_sensolus
             IDbCommand cmd = conn.CreateCommand();
             cmd.CommandText = sb.ToString();
             cmd.ExecuteNonQuery();
+        }
+
+        public static void Update(this DatabaseWrapper conn, List<FactActivity> list)
+        {
+            if (list.Count == 0)
+            {
+                return;
+            }
+            foreach (FactActivity activity in list)
+            {
+                StringBuilder sb = new StringBuilder("UPDATE Fact_Activity SET ");
+                sb.Append($"evttime = {SqlConvert.Convert(activity.Evttime)}, ");
+                sb.Append($"inserttime = {SqlConvert.Convert(activity.Inserttime)}, ");
+                sb.Append($"serial = {SqlConvert.Convert(activity.Serial)}, ");
+                sb.Append($"evttype = {SqlConvert.Convert(activity.Evttype)}, ");
+                sb.Append($"lat = {SqlConvert.Convert(activity.Lat)}, ");
+                sb.Append($"lon = {SqlConvert.Convert(activity.Lon)}, ");
+                sb.Append($"src = {SqlConvert.Convert(activity.Src)}, ");
+                sb.Append($"accuracy = {SqlConvert.Convert(activity.Accuracy)}, ");
+                sb.Append($"address = {SqlConvert.Convert(activity.Address)}, ");
+                sb.Append($"geozones = {SqlConvert.Convert(activity.Geozones)}, ");
+                sb.Append($"trackerrecid = {SqlConvert.Convert(activity.Trackerrecid)} ");
+                sb.Append($"WHERE id = {SqlConvert.Convert(activity.Id)}");
+                IDbCommand cmd = conn.CreateCommand();
+                cmd.CommandText = sb.ToString();
+                cmd.ExecuteNonQuery();
+            }
         }
 
         public static FactActivity GetLatestActivity(this DatabaseWrapper conn, string serial)

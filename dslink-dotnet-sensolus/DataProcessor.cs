@@ -131,14 +131,21 @@ namespace dslink_dotnet_sensolus
             Dictionary<long, FactActivity> dbData = conn.GetActivities(from, to).ToDictionary(x => x.GetKeyValue(), x => x);
             List<FactActivity> sensolusData = api.GetActivities(from, to, trackers);
             List<FactActivity> toAdd = new List<FactActivity>();
+            List<FactActivity> toUpdate = new List<FactActivity>();
             foreach (var obj in sensolusData)
             {
-                if (!dbData.ContainsKey(obj.GetKeyValue()))
+                var key = obj.GetKeyValue();
+                if (!dbData.ContainsKey(key))
                 {
                     toAdd.Add(obj);
                 }
+                else if(!dbData[key].Equals(obj))
+                {
+                    toUpdate.Add(obj);
+                }
             }
             conn.Insert(toAdd);
+            conn.Update(toUpdate);
         }
 
         public void ThirdPhase(DatabaseWrapper conn, string[] serials)
@@ -169,7 +176,7 @@ namespace dslink_dotnet_sensolus
                 {
                     toAdd.Add(alert);
                 }
-                else if(dbObjs[alertKey].Alertclear != alert.Alertclear)
+                else if(!dbObjs[alertKey].Alertclear.Equals(alert.Alertclear))
                 {
                     toUpdate.Add(alert);
                 }

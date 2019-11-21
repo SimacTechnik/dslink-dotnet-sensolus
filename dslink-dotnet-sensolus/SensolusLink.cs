@@ -298,15 +298,21 @@ namespace dslink_dotnet_sensolus
                     client.Open();
                     transaction = client.BeginTransaction();
 
-                    dp.FirstPhase(client);
+                    //dp.FirstPhase(client);
 
                     serial = request.Parameters[SensolusConstants.SERIAL]?.Value<string>();
 
                     FactActivity latestActivity = client.GetLatestActivity(serial);
                     int halfMinutes = (int)Math.Ceiling((DateTime.Now - latestActivity.Evttime).TotalMinutes / 2);
-                    List<DimTracker> tracker = new List<DimTracker>();
-                    tracker.Add(client.GetDimTracker(serial));
-                    dp.SecondPhase(client, halfMinutes, tracker);
+                    List<DimTracker> trackers = new List<DimTracker>();
+                    DimTracker tracker = client.GetDimTracker(serial);
+                    if(tracker == default(DimTracker))
+                    {
+                        dp.FirstPhase(client);
+                        tracker = client.GetDimTracker(serial);
+                    }
+                    trackers.Add(tracker);
+                    dp.SecondPhase(client, halfMinutes, trackers);
                     dp.ThirdPhase(client, new string[] { serial });
 
                     transaction.Commit();
@@ -371,6 +377,7 @@ namespace dslink_dotnet_sensolus
 
             DateTime start = DateTime.Now;
             DataProcessor dp = new DataProcessor(cfg);
+
             IDbTransaction transaction = null;
 
             string serial = "";
@@ -384,7 +391,7 @@ namespace dslink_dotnet_sensolus
                     client.Open();
                     transaction = client.BeginTransaction();
 
-                    dp.FirstPhase(client);
+                    //dp.FirstPhase(client);
                     List<DimTracker> trackers = client.GetDimTrackers();
 
                     FactActivity activity = new FactActivity();
@@ -403,6 +410,11 @@ namespace dslink_dotnet_sensolus
                     serial = activity.Serial;
 
                     DimTracker tracker = trackers.Find(x => x.Serial == activity.Serial);
+                    if(tracker == default(DimTracker))
+                    {
+                        dp.FirstPhase(client);
+                        tracker = client.GetDimTrackers().Find(x => x.Serial == activity.Serial);
+                    }
 
                     activity.Trackerrecid = tracker.Recid;
 
@@ -417,6 +429,10 @@ namespace dslink_dotnet_sensolus
                             data["inGz"] = true;
                             JArray geozones = JArray.Parse(activity.Geozones);
                             data["lastGz"] = geozones[0].Value<string>();
+                            if(client.GetZones().Find(x => x.Id == long.Parse(data["lastGz"])) == default(DimZone))
+                            {
+                                dp.FirstPhase(client);
+                            }
                             data["lastGzEntry"] = (activity.Evttime - epoch).TotalMilliseconds;
                         }
 

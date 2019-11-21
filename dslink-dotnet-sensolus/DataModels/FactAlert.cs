@@ -9,7 +9,7 @@ using System.Text;
 
 namespace dslink_dotnet_sensolus
 {
-    public class FactAlert : IKeyValue<string>
+    public class FactAlert : IKeyValue<string>, IEquatable<FactAlert>
     {
         public DateTime Alerttime { get; set; }
         public string Alerttype { get; set; }
@@ -20,6 +20,19 @@ namespace dslink_dotnet_sensolus
         public long Alertactivity { get; set; }
         public long Rulerecid { get; set; }
         public DateTime? Alertclear { get; set; }
+
+        public bool Equals(FactAlert other)
+        {
+            return Alerttime == other.Alerttime &&
+                Alerttype == other.Alerttype &&
+                Alertruleid == other.Alertruleid &&
+                Trackerserial == other.Trackerserial &&
+                Severity == other.Severity &&
+                Alerttitle == other.Alerttitle &&
+                Alertactivity == other.Alertactivity &&
+                Rulerecid == other.Rulerecid &&
+                Alertclear == other.Alertclear;
+        }
 
         public string GetKeyValue()
         {

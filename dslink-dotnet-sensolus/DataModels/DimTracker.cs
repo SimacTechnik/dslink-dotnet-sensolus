@@ -21,6 +21,7 @@ namespace dslink_dotnet_sensolus
         public string Thirdpartyid { get; set; }
         public string Tags { get; set; }
         public TBMap? TBRef { get; set; }
+        public long? TBRefId { get; set; }
 
         public bool Equals(DimTracker other)
         {
@@ -90,15 +91,18 @@ namespace dslink_dotnet_sensolus
                     obj.Productkey = (DBNull.Value == reader["productkey"]) ? null : (string)reader["productkey"];
                     obj.Thirdpartyid = (DBNull.Value == reader["thirdpartyid"]) ? null : (string)reader["thirdpartyid"];
                     obj.Tags = (DBNull.Value == reader["tags"]) ? null : (string)reader["tags"];
-                    obj.TBRef = (DBNull.Value == reader["tbref"]) ? (TBMap?)null : conn.GetTBMap((long)reader["tbref"]);
+                    obj.TBRefId = (DBNull.Value == reader["tbref"]) ? null : (long?)reader["tbref"];
                     data.Add(obj);
                 }
             }
+            data.ForEach(x => { if (x.TBRefId != null) x.TBRef = conn.GetTBMap((long)x.TBRefId); });
+
             return data;
         }
 
         public static DimTracker GetDimTracker(this DatabaseWrapper conn, string serial)
         {
+            DimTracker obj = new DimTracker();
             IDbCommand cmd = conn.CreateCommand();
             cmd.CommandText = $"SELECT * FROM Dim_Tracker WHERE validto IS NULL AND serial = {SqlConvert.Convert(serial)};";
             using (IDataReader reader = cmd.ExecuteReader())
@@ -107,7 +111,6 @@ namespace dslink_dotnet_sensolus
                 {
                     return null;
                 }
-                DimTracker obj = new DimTracker();
                 obj.Recid = (long)reader["recid"];
                 obj.Serial = (string)reader["serial"];
                 obj.Validfrom = (DateTime)reader["validfrom"];
@@ -116,9 +119,10 @@ namespace dslink_dotnet_sensolus
                 obj.Productkey = (DBNull.Value == reader["productkey"]) ? null : (string)reader["productkey"];
                 obj.Thirdpartyid = (DBNull.Value == reader["thirdpartyid"]) ? null : (string)reader["thirdpartyid"];
                 obj.Tags = (DBNull.Value == reader["tags"]) ? null : (string)reader["tags"];
-                obj.TBRef = (DBNull.Value == reader["tbref"]) ? (TBMap?)null : conn.GetTBMap((long)reader["tbref"]);
-                return obj;
+                obj.TBRefId = (DBNull.Value == reader["tbref"]) ? null : (long?)reader["tbref"];
             }
+            if(obj.TBRefId != null) obj.TBRef = conn.GetTBMap((long)obj.TBRefId);
+            return obj;
         }
 
         public static List<DimTracker> GetDimTrackers(this API api)
